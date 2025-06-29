@@ -1,0 +1,20 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+
+      {
+        "name": "Python: Flask",
+        "type": "debugpy",
+        "request": "launch",
+        "module": "flask",
+        "env": {
+          "FLASK_APP": "app.py",     // 替换为你的主程序文件名（如 main.py）
+          "FLASK_DEBUG": "1"
+        },
+        "args": ["run", "--host=192.168.3.5", "--port=5000"],
+        "jinja": true,
+        "console": "integratedTerminal",
+        "justMyCode": true
+      }
+    ]
+  }
