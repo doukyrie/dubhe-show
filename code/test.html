@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZIP文件处理工具</title>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #1a2a6c, #b21f1f, #1a2a6c);
+      color: #333;
+      line-height: 1.6;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 30px;
+    }
+    
+    .app-card {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 15px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+      padding: 30px;
+    }
+    
+    header {
+      text-align: center;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid #eee;
+    }
+    
+    h1 {
+      color: #1a2a6c;
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 15px;
+    }
+    
+    h1 i {
+      color: #b21f1f;
+    }
+    
+    .subtitle {
+      color: #555;
+      font-size: 1.1rem;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    
+    .upload-area {
+      border: 3px dashed #1a2a6c;
+      border-radius: 12px;
+      padding: 40px 20px;
+      text-align: center;
+      background: rgba(26, 42, 108, 0.05);
+      transition: all 0.3s ease;
+      margin: 25px 0;
+      position: relative;
+      cursor: pointer;
+    }
+    
+    .upload-area:hover, .upload-area.dragover {
+      background: rgba(26, 42, 108, 0.1);
+      border-color: #b21f1f;
+      transform: translateY(-5px);
+    }
+    
+    .upload-icon {
+      font-size: 4rem;
+      color: #1a2a6c;
+      margin-bottom: 15px;
+    }
+    
+    .upload-text {
+      font-size: 1.2rem;
+      margin-bottom: 15px;
+      color: #444;
+    }
+    
+    .file-input {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    
+    .file-info {
+      background: #e3f2fd;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 20px;
+      text-align: center;
+      display: none;
+    }
+    
+    .file-info.active {
+      display: block;
+    }
+    
+    .file-info i {
+      margin-right: 10px;
+      color: #1a2a6c;
+    }
+    
+    .actions {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin: 25px 0;
+    }
+    
+    .btn {
+      padding: 12px 30px;
+      border: none;
+      border-radius: 50px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(90deg, #1a2a6c, #b21f1f);
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: linear-gradient(90deg, #0f1a4a, #8a1717);
+      transform: translateY(-3px);
+      box-shadow: 0 5px 15px rgba(178, 31, 31, 0.4);
+    }
+    
+    .btn-primary:disabled {
+      background: #cccccc;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    
+    .btn-secondary {
+      background: #f5f5f5;
+      color: #333;
+      border: 1px solid #ddd;
+    }
+    
+    .btn-secondary:hover {
+      background: #e0e0e0;
+    }
+    
+    .status-area {
+      background: #f9f9f9;
+      border-radius: 10px;
+      padding: 20px;
+      margin-top: 25px;
+      border-left: 4px solid #1a2a6c;
+    }
+    
+    .status-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 15px;
+      color: #1a2a6c;
+      font-size: 1.2rem;
+    }
+    
+    .progress-container {
+      height: 10px;
+      background: #e0e0e0;
+      border-radius: 5px;
+      overflow: hidden;
+      margin: 15px 0;
+    }
+    
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #1a2a6c, #b21f1f);
+      width: 0%;
+      transition: width 0.4s ease;
+    }
+    
+    .status-message {
+      padding: 10px;
+      border-radius: 5px;
+      margin: 10px 0;
+      font-size: 1rem;
+    }
+    
+    .success {
+      background: #e8f5e9;
+      color: #2e7d32;
+      border-left: 4px solid #4caf50;
+    }
+    
+    .error {
+      background: #ffebee;
+      color: #c62828;
+      border-left: 4px solid #f44336;
+    }
+    
+    .info {
+      background: #e3f2fd;
+      color: #1565c0;
+      border-left: 4px solid #2196f3;
+    }
+    
+    .result-section {
+      margin-top: 30px;
+      display: none;
+    }
+    
+    .result-section.active {
+      display: block;
+    }
+    
+    .result-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 15px;
+      color: #1a2a6c;
+      font-size: 1.3rem;
+    }
+    
+    .result-content {
+      background: #f9f9f9;
+      border-radius: 8px;
+      padding: 20px;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 0.9rem;
+      white-space: pre-wrap;
+      border: 1px solid #eee;
+    }
+    
+    .instructions {
+      background: #e3f2fd;
+      border-radius: 10px;
+      padding: 20px;
+      margin-top: 30px;
+    }
+    
+    .instructions h3 {
+      color: #1a2a6c;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .instructions ul {
+      padding-left: 25px;
+    }
+    
+    .instructions li {
+      margin-bottom: 10px;
+    }
+    
+    @media (max-width: 768px) {
+      .container {
+        padding: 15px;
+      }
+      
+      .app-card {
+        padding: 20px;
+      }
+      
+      h1 {
+        font-size: 2rem;
+      }
+      
+      .actions {
+        flex-direction: column;
+      }
+      
+      .btn {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="container">
+      <div class="app-card">
+        <header>
+          <h1><i class="fas fa-file-archive"></i> ZIP文件处理工具</h1>
+          <p class="subtitle">上传ZIP压缩包，系统将自动解压并处理其中的MAT文件，生成JSON格式结果</p>
+        </header>
+        
+        <main>
+          <div class="upload-area" :class="{ 'dragover': isDragover }" 
+               @dragover.prevent="handleDragOver" 
+               @dragleave="handleDragLeave" 
+               @drop.prevent="handleDrop">
+            <input type="file" class="file-input" ref="fileInput" accept=".zip" @change="handleFileChange">
+            <div class="upload-icon">
+              <i class="fas fa-cloud-upload-alt"></i>
+            </div>
+            <p class="upload-text">拖放ZIP文件到此处或<strong>点击选择文件</strong></p>
+            <p>仅支持ZIP格式文件</p>
+          </div>
+          
+          <div class="file-info" :class="{ 'active': selectedFile }">
+            <p><i class="fas fa-file-archive"></i> 已选择文件: {{ selectedFile ? selectedFile.name : '' }}</p>
+            <p><i class="fas fa-info-circle"></i> 文件大小: {{ selectedFile ? formatFileSize(selectedFile.size) : '' }}</p>
+          </div>
+          
+          <div class="actions">
+            <button class="btn btn-primary" :disabled="!selectedFile || isProcessing" @click="processFile">
+              <i class="fas fa-cogs"></i> 处理文件
+            </button>
+            <button class="btn btn-secondary" @click="resetApp">
+              <i class="fas fa-redo"></i> 重置
+            </button>
+          </div>
+          
+          <div class="status-area">
+            <div class="status-header">
+              <i class="fas fa-tasks"></i>
+              <h2>处理状态</h2>
+            </div>
+            
+            <div class="progress-container" v-if="isProcessing">
+              <div class="progress-bar" :style="{ width: progress + '%' }"></div>
+            </div>
+            
+            <div class="status-messages">
+              <div class="status-message" :class="message.type" v-for="(message, index) in statusMessages" :key="index">
+                <i :class="message.icon"></i> {{ message.text }}
+              </div>
+            </div>
+          </div>
+          
+          <div class="result-section" :class="{ 'active': resultData }">
+            <div class="result-header">
+              <i class="fas fa-file-code"></i>
+              <h2>处理结果</h2>
+            </div>
+            <div class="result-content">
+              {{ resultData }}
+            </div>
+          </div>
+        </main>
+        
+        <div class="instructions">
+          <h3><i class="fas fa-info-circle"></i> 使用说明</h3>
+          <ul>
+            <li>上传包含.mat文件的ZIP压缩包</li>
+            <li>系统将自动解压ZIP文件并处理其中的MAT文件</li>
+            <li>处理完成后，您将看到JSON格式的结果数据</li>
+            <li>支持的MAT文件应包含以下元素: CoHH, CoHV, CoVH, CoVV, distance, phi, theta10</li>
+            <li>处理过程可能需要一些时间，请耐心等待</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    new Vue({
+      el: '#app',
+      data: {
+        selectedFile: null,
+        isProcessing: false,
+        progress: 0,
+        isDragover: false,
+        statusMessages: [],
+        resultData: null
+      },
+      methods: {
+        // 处理文件选择
+        handleFileChange(e) {
+          const files = e.target.files;
+          if (files.length > 0) {
+            this.selectedFile = files[0];
+            this.addStatusMessage('success', 'fas fa-check-circle', '文件已选择: ' + files[0].name);
+          }
+        },
+        
+        // 处理拖拽事件
+        handleDragOver(e) {
+          e.preventDefault();
+          this.isDragover = true;
+        },
+        
+        handleDragLeave() {
+          this.isDragover = false;
+        },
+        
+        handleDrop(e) {
+          this.isDragover = false;
+          const files = e.dataTransfer.files;
+          if (files.length > 0) {
+            const file = files[0];
+            if (file.name.endsWith('.zip')) {
+              this.selectedFile = file;
+              this.addStatusMessage('success', 'fas fa-check-circle', '文件已选择: ' + file.name);
+            } else {
+              this.addStatusMessage('error', 'fas fa-exclamation-circle', '请选择ZIP格式的文件');
+            }
+          }
+        },
+        
+        // 处理文件
+        async processFile() {
+          if (!this.selectedFile) return;
+          
+          this.isProcessing = true;
+          this.progress = 10;
+          this.resultData = null;
+          this.statusMessages = [];
+          
+          this.addStatusMessage('info', 'fas fa-spinner fa-spin', '开始处理文件...');
+          
+          try {
+            // 模拟进度
+            const progressInterval = setInterval(() => {
+              if (this.progress < 90) {
+                this.progress += 10;
+              }
+            }, 500);
+            
+            // 创建FormData对象并添加文件
+            const formData = new FormData();
+            formData.append('file', this.selectedFile);
+            
+            // 发送到后端
+            const response = await axios.post('http://localhost:5000/api/post', formData, {
+              headers: {
+                'Content-Type': 'multipart/form-data'
+              },
+              onUploadProgress: (progressEvent) => {
+                // 实际项目中可以根据上传进度更新
+              }
+            });
+            
+            // 清除进度模拟
+            clearInterval(progressInterval);
+            this.progress = 100;
+            
+            // 处理响应
+            if (response.data.success) {
+              this.addStatusMessage('success', 'fas fa-check-circle', '文件处理成功！');
+              this.resultData = JSON.stringify(response.data.result, null, 2);
+            } else {
+              this.addStatusMessage('error', 'fas fa-exclamation-circle', '处理失败: ' + response.data.message);
+            }
+          } catch (error) {
+            this.addStatusMessage('error', 'fas fa-exclamation-circle', '发生错误: ' + error.message);
+            console.error('Error:', error);
+          } finally {
+            this.isProcessing = false;
+          }
+        },
+        
+        // 重置应用
+        resetApp() {
+          this.selectedFile = null;
+          this.isProcessing = false;
+          this.progress = 0;
+          this.statusMessages = [];
+          this.resultData = null;
+          this.$refs.fileInput.value = '';
+        },
+        
+        // 添加状态消息
+        addStatusMessage(type, icon, text) {
+          this.statusMessages.push({ type, icon, text });
+        },
+        
+        // 格式化文件大小
+        formatFileSize(bytes) {
+          if (bytes === 0) return '0 Bytes';
+          const k = 1024;
+          const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+          const i = Math.floor(Math.log(bytes) / Math.log(k));
+          return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+      }
+    });
+  </script>
+</body>
+</html>
