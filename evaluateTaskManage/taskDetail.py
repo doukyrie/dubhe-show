@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify,Blueprint
-from models.taskDetailModels import db, EvaluateDetail, PtTrainAlgorithm, PtImage, DataDataset, PtModelInfo, ResourceSpecs, User,PtModelBranch
+from models.models import db, EvaluateDetail, PtTrainAlgorithm, PtImage, DataDataset, PtModelInfo, ResourceSpecs, User,PtModelBranch
 
 
 
@@ -61,6 +61,9 @@ def get_task_details():
 
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
+    
+    finally:
+        db.session.close()
 
 
 
@@ -157,6 +160,8 @@ def get_all_resources():
         
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        db.session.close()
     
 
 
@@ -218,3 +223,77 @@ def update_task_detail():
             'success': False, 
             'message': f'更新任务明细失败: {str(e)}'
         }), 500
+    finally:
+        db.session.close()
+    
+
+
+@bp.route('/submitTaskDetail', methods=['POST'])
+def submit_task_detail():
+    try:
+        # 获取前端传来的JSON数据
+        data = request.json
+        
+    # 查resourceSpecs
+        if not data or 'resourceId' not in data:
+            return jsonify({"success": False, "message": "缺少resourceId参数"}), 400
+
+        resource_id = data['resourceId']
+        
+        resource = ResourceSpecs.query.filter_by(
+            id=resource_id,
+            deleted=0
+        ).first()
+
+        if not resource:
+            return jsonify({"success": False, "message": "未找到对应的资源规格"}), 404
+
+
+    #查dataset
+        if 'dataSourceId' not in data:
+            return jsonify({"success": False, "message": "缺少dataSourceId参数"}), 400
+        
+        # 如果提供了dataSourceId，查询数据集信息
+
+        dataset = DataDataset.query.filter_by(
+            id=data['dataSourceId'],
+            deleted=0
+        ).first()
+
+        if not dataset:
+            return jsonify({"success": False, "message": "未找到对应的数据集"}), 404
+
+
+    #查image
+        if 'imageId' not in data:
+            return jsonify({"success": False, "message": "缺少imageId参数"}), 400
+
+        image = PtImage.query.filter_by(
+            id=data['imageId'],
+            deleted=0
+        ).first()
+
+        if not image:
+            return jsonify({"success": False, "message": "未找到对应的image"}), 404
+
+
+
+        # 构建响应数据
+        result = {
+            "cpuNum": resource.cpu_num,
+            "gpuNum": resource.gpu_num,
+            "memNum": resource.mem_num,
+            "workspaceRequest": resource.workspace_request,
+            "specsName": resource.specs_name,
+            "resourcesPoolType": resource.resources_pool_type,
+            "imageName": image.image_name,
+            "imageTag": image.image_tag,
+            "dataSourceName": dataset.name,
+            "dataSourcePath": dataset.uri,
+            "dataSourceId": data['dataSourceId']
+        }
+
+        return jsonify({"success": True, "data": result})
+
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500

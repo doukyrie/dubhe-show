@@ -1,5 +1,5 @@
 from flask import Flask
-from models import db
+from models.models import db
 from evaluateTaskManage.taskManage import bp as task_manage_bp
 from evaluateTaskManage.taskDetail import bp as task_detail_bp
 from flask_cors import CORS

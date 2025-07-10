@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, Blueprint
-from models.taskManageModels import db, EvaluationTask, EvaluateDetail
+from models.models import db, EvaluationTask, EvaluateDetail
 
 
 bp = Blueprint('taskManage', __name__, url_prefix='/api/taskManage')
@@ -64,6 +64,8 @@ def add_task():
             'success': False, 
             'message': f'创建任务失败: {str(e)}'
         }), 500
+    finally:
+        db.session.close()
 
 
 
@@ -78,6 +80,8 @@ def get_tasks():
         })
     except Exception as e:
         return jsonify({'success': False, 'message': f'获取任务列表失败: {str(e)}'}), 500
+    finally:
+        db.session.close()
     
 
 #查询功能
@@ -130,6 +134,8 @@ def query_tasks():
         
     except Exception as e:
         return jsonify({'success': False, 'message': f'查询失败: {str(e)}'}), 500
+    finally:
+        db.session.close()
 
 
 
@@ -141,12 +147,32 @@ def batch_delete_tasks():
         task_ids = request.json.get('ids', [])
         if not task_ids:
             return jsonify({'success': False, 'message': '请选择要删除的任务'}), 400
-            
-        # 批量删除
-        EvaluationTask.query.filter(EvaluationTask.evaluate_id.in_(task_ids)).delete()
+
+        # 开启事务
+        db.session.begin()
+
+        # 1. 先删除明细表中的相关数据
+        deleted_details = EvaluateDetail.query.filter(
+            EvaluateDetail.evaluate_id.in_(task_ids)
+        ).delete(synchronize_session=False)
+
+        # 2. 再删除主表中的数据
+        deleted_tasks = EvaluationTask.query.filter(
+            EvaluationTask.evaluate_id.in_(task_ids)
+        ).delete(synchronize_session=False)
+
         db.session.commit()
-        return jsonify({'success': True, 'message': f'成功删除{len(task_ids)}条任务'})
-        
+
+        return jsonify({
+            'success': True,
+            'message': f'成功删除{deleted_tasks}条主任务和{deleted_details}条明细记录'
+        })
+
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'message': f'批量删除失败: {str(e)}'}), 500
+        return jsonify({
+            'success': False,
+            'message': f'批量删除失败: {str(e)}'
+        }), 500
+    finally:
+        db.session.close()
