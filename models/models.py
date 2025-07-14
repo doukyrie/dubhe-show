@@ -12,6 +12,7 @@ class PtTrainAlgorithm(db.Model):
     algorithm_name = db.Column(db.String(100))
     origin_user_id = db.Column(db.Integer)
     deleted = db.Column(db.Integer)
+    create_user_id = db.Column(db.String(100))
 
 class PtImage(db.Model):
     __tablename__ = 'pt_image'
@@ -20,15 +21,18 @@ class PtImage(db.Model):
     image_tag = db.Column(db.String(50))
     origin_user_id = db.Column(db.Integer)
     deleted = db.Column(db.Integer)
+    create_user_id = db.Column(db.String(100))
 
 class DataDataset(db.Model):
     __tablename__ = 'data_dataset'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100))
+    type = db.Column(db.Integer)
     origin_user_id = db.Column(db.Integer)
     deleted = db.Column(db.Integer)
     uri = db.Column(db.String(100))
     deleted = db.Column(db.Integer)
+    create_user_id = db.Column(db.String(100))
 
 class PtModelInfo(db.Model):
     __tablename__ = 'pt_model_info'
@@ -36,7 +40,9 @@ class PtModelInfo(db.Model):
     name = db.Column(db.String(100))
     model_version = db.Column(BigInteger)
     origin_user_id = db.Column(db.Integer)
+    model_resource = db.Column(db.Integer)
     deleted = db.Column(db.Integer)
+    create_user_id = db.Column(db.String(100))
 
 class PtModelBranch(db.Model):
     __tablename__ = 'pt_model_branch'
@@ -44,6 +50,7 @@ class PtModelBranch(db.Model):
     parent_id = db.Column(BigInteger)
     version = db.Column(db.String(8))
     deleted = db.Column(db.Integer)
+    create_user_id = db.Column(db.String(100))
 
 
 class ResourceSpecs(db.Model):
@@ -57,6 +64,7 @@ class ResourceSpecs(db.Model):
     gpu_num = db.Column(db.Integer)
     mem_num = db.Column(db.Integer)
     workspace_request = db.Column(db.Integer)
+    create_user_id = db.Column(db.String(100))
 
 
 class User(db.Model):

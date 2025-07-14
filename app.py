@@ -6,7 +6,7 @@ from flask_cors import CORS
 
 def create_app():
     app = Flask(__name__)
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:root@192.168.3.6:30678/dubhe-prod'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:123456@192.168.3.37:3306/dubhe-prod'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
     # 初始化数据库

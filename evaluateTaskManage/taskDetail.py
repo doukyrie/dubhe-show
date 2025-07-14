@@ -1,9 +1,11 @@
 from flask import Flask, request, jsonify,Blueprint
 from models.models import db, EvaluateDetail, PtTrainAlgorithm, PtImage, DataDataset, PtModelInfo, ResourceSpecs, User,PtModelBranch
-
-
+import requests
 
 bp = Blueprint('taskDetail', __name__, url_prefix='/api/taskDetail')
+
+# Java后端API地址
+JAVA_API_URL = "http://192.168.3.6:30800/api/v1/train/trainJob"
 
 
 @bp.route('/getTaskDetail', methods=['GET'])
@@ -234,66 +236,186 @@ def submit_task_detail():
         # 获取前端传来的JSON数据
         data = request.json
         
-    # 查resourceSpecs
+        # 检查前端是否传入了 Token
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({"success": False, "message": "缺少Authorization Token"}), 401
+
+        ############################################### 查resourceSpecs ###############################################################
         if not data or 'resourceId' not in data:
             return jsonify({"success": False, "message": "缺少resourceId参数"}), 400
 
         resource_id = data['resourceId']
-        
         resource = ResourceSpecs.query.filter_by(
             id=resource_id,
-            deleted=0
+            deleted=0,
+            create_user_id=data['createUserId']
         ).first()
 
         if not resource:
             return jsonify({"success": False, "message": "未找到对应的资源规格"}), 404
 
-
-    #查dataset
+        ######################################################## 查dataset #######################################################
         if 'dataSourceId' not in data:
             return jsonify({"success": False, "message": "缺少dataSourceId参数"}), 400
         
-        # 如果提供了dataSourceId，查询数据集信息
-
         dataset = DataDataset.query.filter_by(
             id=data['dataSourceId'],
-            deleted=0
+            deleted=0,
+            create_user_id=data['createUserId']
         ).first()
 
         if not dataset:
             return jsonify({"success": False, "message": "未找到对应的数据集"}), 404
 
-
-    #查image
+        ########################################### 查image ####################################################
         if 'imageId' not in data:
             return jsonify({"success": False, "message": "缺少imageId参数"}), 400
 
         image = PtImage.query.filter_by(
             id=data['imageId'],
-            deleted=0
+            deleted=0,
+            create_user_id=data['createUserId']
         ).first()
 
         if not image:
             return jsonify({"success": False, "message": "未找到对应的image"}), 404
+        
+
+        ############################################# 查algorithm ###################################################
+        if 'algorithmId' not in data:
+            return jsonify({"success": False, "message": "缺少algorithmId参数"}), 400
+
+        algorithm = PtTrainAlgorithm.query.filter_by(
+            id=data['algorithmId'],
+            deleted=0,
+            create_user_id=data['createUserId']
+        ).first()
+
+        if not algorithm:
+            return jsonify({"success": False, "message": "未找到对应的algorithm"}), 404
+        
+
+        ############################################ 查evaluate ############################################
+        if 'evaluateId' not in data:
+            return jsonify({"success": False, "message": "缺少evaluateId参数"}), 400
+
+        evaluate = EvaluateDetail.query.filter_by(
+            evaluate_id=data['evaluateId'],
+            evaluate_train_id=data['evaluateTrainId'],
+            deleted=0,
+            create_user_id=data['createUserId']
+        ).first()
+
+        if not evaluate:
+            return jsonify({"success": False, "message": "未找到对应的evaluate"}), 404
+        
+
+        ############################################ model_info #########################################
+        if 'modelId' not in data:
+            return jsonify({"success": False, "message": "缺少modelId参数"}), 400
+
+        modelInfo = PtModelInfo.query.filter_by(
+            id=data['modelId'],
+            deleted=0,
+            create_user_id=data['createUserId']
+        ).first()
+
+        if not modelInfo:
+            return jsonify({"success": False, "message": "未找到对应的modelInfo"}), 404
+        
+
+        ########################################## model_branch ########################################
+        if 'modelBranchId' not in data:
+            return jsonify({"success": False, "message": "缺少modelBranchId参数"}), 400
+
+        modelBranch = PtModelBranch.query.filter_by(
+            id=data['modelBranchId'],
+            deleted=0,
+            create_user_id=data['createUserId']
+        ).first()
+
+        if not modelBranch:
+            return jsonify({"success": False, "message": "未找到对应的modelBranch"}), 404
 
 
 
-        # 构建响应数据
-        result = {
+
+
+        # 构建要发送给Java后端的数据
+        java_request_data = {
+            "id": None,
+            "trainName": data['trainName'],
+            "jobName": None,
+            "paramName": None,
+            "description": data['description'],
+            "algorithmId": data['algorithmId'],
+            "algorithmName": algorithm.algorithm_name,
+            "datasetType": dataset.type,
+            "imageTag": image.image_tag,
+            "imageName": image.image_name,
+            "notebookId": None,
+            "dataSourceName": dataset.name,
+            "dataSourceId": data['dataSourceId'],
+            "dataSourcePath": dataset.uri,
+            "runCommand": data['runCommand'],
+            "runParams": {},
+            "trainType": 0,
+            "valType": 0,
+            "resourcesPoolNode": 1,
+            "resourcesPoolType": resource.resources_pool_type,
+            "trainJobSpecsName": resource.specs_name,
+            "outPath": "/home/result/",
+            "logPath": "/home/log/",
+            "delayCreateTime": 0,
+            "delayDeleteTime": 0,
+            "modelResource": modelInfo.model_resource,
+            "modelId": data['modelId'],
+            "modelBranchId": data['modelBranchId'],
+            "runParamsNameMap": {},
+            "ptDdrlTrainParam": {
+                "scenario": None,
+                "distributed": False
+            },
             "cpuNum": resource.cpu_num,
             "gpuNum": resource.gpu_num,
             "memNum": resource.mem_num,
-            "workspaceRequest": resource.workspace_request,
-            "specsName": resource.specs_name,
-            "resourcesPoolType": resource.resources_pool_type,
-            "imageName": image.image_name,
-            "imageTag": image.image_tag,
-            "dataSourceName": dataset.name,
-            "dataSourcePath": dataset.uri,
-            "dataSourceId": data['dataSourceId']
+            "workspaceRequest": resource.workspace_request
         }
 
-        return jsonify({"success": True, "data": result})
+        # 准备请求头（使用前端传来的 Token）
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': auth_header  # 直接透传前端的 Authorization 头
+        }
 
+        # 调用Java后端API
+        response = requests.post(
+            JAVA_API_URL,
+            json=java_request_data,
+            headers=headers,
+            timeout=10
+        )
+
+        # 处理Java后端的响应
+        if response.status_code == 200:
+            return jsonify({
+                "success": True,
+                "message": "任务已成功提交到Java后端",
+                "java_response": response.json()
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": f"Java后端返回错误: {response.status_code}",
+                "response_text": response.text
+            }), response.status_code
+
+    except requests.exceptions.Timeout:
+        return jsonify({"success": False, "message": "连接Java后端超时"}), 504
+    except requests.exceptions.RequestException as e:
+        return jsonify({"success": False, "message": f"连接Java后端失败: {str(e)}"}), 500
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        db.session.close()
