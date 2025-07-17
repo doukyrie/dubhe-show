@@ -75,7 +75,7 @@ def add_task():
 def get_tasks():
     try:
         # 获取前端传入的userId参数
-        user_id = request.args.get('userId')
+        user_id = request.args.get('createUserId')
         
         # 校验userId必须提供
         if not user_id:
@@ -165,13 +165,9 @@ def batch_delete_tasks():
     try:
         data = request.json
         task_ids = data.get('ids', [])
-        create_user_id = data.get('userId')
         
         if not task_ids:
             return jsonify({'success': False, 'message': '请选择要删除的任务'}), 400
-        
-        if not create_user_id:
-            return jsonify({'success': False, 'message': '必须提供 userId(create_user_id) 参数'}), 400
 
         # 开启事务
         db.session.begin()
@@ -179,13 +175,11 @@ def batch_delete_tasks():
         # 1. 删除明细表数据（直接使用明细表的 create_user_id 过滤）
         deleted_details = EvaluateDetail.query.filter(
             EvaluateDetail.evaluate_id.in_(task_ids),
-            EvaluateDetail.create_user_id == create_user_id  # 直接使用明细表的字段
         ).delete(synchronize_session=False)
 
         # 2. 删除主表数据（仍然使用主表的 create_user_id 过滤）
         deleted_tasks = EvaluationTask.query.filter(
             EvaluationTask.evaluate_id.in_(task_ids),
-            EvaluationTask.create_user_id == create_user_id
         ).delete(synchronize_session=False)
 
         db.session.commit()

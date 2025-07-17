@@ -5,7 +5,7 @@ import requests
 bp = Blueprint('taskDetail', __name__, url_prefix='/api/taskDetail')
 
 # Java后端API地址
-JAVA_API_URL = "http://192.168.3.6:30800/api/v1/train/trainJob"
+JAVA_API_URL = "http://192.168.3.25:30800/api/v1/train/trainJob"
 
 
 @bp.route('/getTaskDetail', methods=['GET'])
@@ -233,189 +233,192 @@ def update_task_detail():
 @bp.route('/submitTaskDetail', methods=['POST'])
 def submit_task_detail():
     try:
-        # 获取前端传来的JSON数据
-        data = request.json
-        
-        # 检查前端是否传入了 Token
+        data_list = request.json
+        if not isinstance(data_list, list):
+            return jsonify({"success": False, "message": "请求数据应为JSON数组"}), 400
+
         auth_header = request.headers.get('Authorization')
         if not auth_header:
             return jsonify({"success": False, "message": "缺少Authorization Token"}), 401
 
-        ############################################### 查resourceSpecs ###############################################################
-        if not data or 'resourceId' not in data:
-            return jsonify({"success": False, "message": "缺少resourceId参数"}), 400
+        java_request_data_list = []
+        errors = []
+        success_count = 0
 
-        resource_id = data['resourceId']
-        resource = ResourceSpecs.query.filter_by(
-            id=resource_id,
-            deleted=0,
-            create_user_id=data['createUserId']
-        ).first()
+        for data in data_list:
+            try:
+                # 验证必要字段
+                required_fields = ['evaluateId', 'evaluateTrainId', 'createUserId',
+                                 'resourcesId', 'dataSourceId', 'imageId', 'algorithmId',
+                                 'modelId', 'modelBranchId']
+                missing_fields = [field for field in required_fields if field not in data]
+                if missing_fields:
+                    errors.append(f"记录{data.get('evaluateTrainId', '未知')}: 缺少必要字段 {', '.join(missing_fields)}")
+                    continue
 
-        if not resource:
-            return jsonify({"success": False, "message": "未找到对应的资源规格"}), 404
+                # 1. 先查询是否已存在记录
+                evaluate_detail = EvaluateDetail.query.filter_by(
+                    evaluate_id=data['evaluateId'],
+                    evaluate_train_id=data['evaluateTrainId'],
+                    #create_user_id=data['createUserId']
+                ).first()
 
-        ######################################################## 查dataset #######################################################
-        if 'dataSourceId' not in data:
-            return jsonify({"success": False, "message": "缺少dataSourceId参数"}), 400
-        
-        dataset = DataDataset.query.filter_by(
-            id=data['dataSourceId'],
-            deleted=0,
-            create_user_id=data['createUserId']
-        ).first()
+                if not evaluate_detail:
+                    errors.append(f"记录{data.get('evaluateTrainId', '未知')}: 未找到对应的评估详情记录")
+                    continue
 
-        if not dataset:
-            return jsonify({"success": False, "message": "未找到对应的数据集"}), 404
+                # 2. 查询关联数据
+                resource = ResourceSpecs.query.filter_by(
+                    id=data['resourcesId'],
+                    deleted=0,
+                    #create_user_id=data['createUserId']
+                ).first()
+                if not resource:
+                    errors.append(f"记录{data.get('evaluateTrainId', '未知')}: 未找到资源规格")
+                    continue
 
-        ########################################### 查image ####################################################
-        if 'imageId' not in data:
-            return jsonify({"success": False, "message": "缺少imageId参数"}), 400
+                dataset = DataDataset.query.filter_by(
+                    id=data['dataSourceId'],
+                    deleted=0,
+                    create_user_id=data['createUserId']
+                ).first()
+                if not dataset:
+                    errors.append(f"记录{data.get('evaluateTrainId', '未知')}: 未找到数据集")
+                    continue
 
-        image = PtImage.query.filter_by(
-            id=data['imageId'],
-            deleted=0,
-            create_user_id=data['createUserId']
-        ).first()
+                image = PtImage.query.filter_by(
+                    id=data['imageId'],
+                    deleted=0,
+                    create_user_id=data['createUserId']
+                ).first()
+                if not image:
+                    errors.append(f"记录{data.get('evaluateTrainId', '未知')}: 未找到镜像")
+                    continue
 
-        if not image:
-            return jsonify({"success": False, "message": "未找到对应的image"}), 404
-        
+                algorithm = PtTrainAlgorithm.query.filter_by(
+                    id=data['algorithmId'],
+                    deleted=0,
+                    create_user_id=data['createUserId']
+                ).first()
+                if not algorithm:
+                    errors.append(f"记录{data.get('evaluateTrainId', '未知')}: 未找到算法")
+                    continue
 
-        ############################################# 查algorithm ###################################################
-        if 'algorithmId' not in data:
-            return jsonify({"success": False, "message": "缺少algorithmId参数"}), 400
+                modelInfo = PtModelInfo.query.filter_by(
+                    id=data['modelId'],
+                    deleted=0,
+                    create_user_id=data['createUserId']
+                ).first()
+                if not modelInfo:
+                    errors.append(f"记录{data.get('evaluateTrainId', '未知')}: 未找到模型")
+                    continue
 
-        algorithm = PtTrainAlgorithm.query.filter_by(
-            id=data['algorithmId'],
-            deleted=0,
-            create_user_id=data['createUserId']
-        ).first()
-
-        if not algorithm:
-            return jsonify({"success": False, "message": "未找到对应的algorithm"}), 404
-        
-
-        ############################################ 查evaluate ############################################
-        if 'evaluateId' not in data:
-            return jsonify({"success": False, "message": "缺少evaluateId参数"}), 400
-
-        evaluate = EvaluateDetail.query.filter_by(
-            evaluate_id=data['evaluateId'],
-            evaluate_train_id=data['evaluateTrainId'],
-            deleted=0,
-            create_user_id=data['createUserId']
-        ).first()
-
-        if not evaluate:
-            return jsonify({"success": False, "message": "未找到对应的evaluate"}), 404
-        
-
-        ############################################ model_info #########################################
-        if 'modelId' not in data:
-            return jsonify({"success": False, "message": "缺少modelId参数"}), 400
-
-        modelInfo = PtModelInfo.query.filter_by(
-            id=data['modelId'],
-            deleted=0,
-            create_user_id=data['createUserId']
-        ).first()
-
-        if not modelInfo:
-            return jsonify({"success": False, "message": "未找到对应的modelInfo"}), 404
-        
-
-        ########################################## model_branch ########################################
-        if 'modelBranchId' not in data:
-            return jsonify({"success": False, "message": "缺少modelBranchId参数"}), 400
-
-        modelBranch = PtModelBranch.query.filter_by(
-            id=data['modelBranchId'],
-            deleted=0,
-            create_user_id=data['createUserId']
-        ).first()
-
-        if not modelBranch:
-            return jsonify({"success": False, "message": "未找到对应的modelBranch"}), 404
+                modelBranch = PtModelBranch.query.filter_by(
+                    parent_id=data['modelId'],
+                    version=data['modelBranchId'],
+                    deleted=0,
+                    #create_user_id=data['createUserId']
+                ).first()
+                if not modelBranch:
+                    errors.append(f"记录{data.get('evaluateTrainId', '未知')}: 未找到模型分支")
+                    continue
+                
+                db.session.add(evaluate_detail)
+                # 3. 更新现有记录
+                evaluate_detail.train_name = data.get('trainName')
+                evaluate_detail.description = data.get('description')
+                evaluate_detail.algorithm_id = data['algorithmId']
+                evaluate_detail.image_tag = image.image_tag
+                evaluate_detail.image_id = data['imageId']
+                evaluate_detail.data_source_id = data['dataSourceId']
+                evaluate_detail.run_command = data.get('runCommand')
+                evaluate_detail.resources_id = data['resourcesId']
+                evaluate_detail.model_id = data['modelId']
+                evaluate_detail.model_branch_id = data['modelBranchId']
 
 
+                # 4. 构建Java请求数据
+                java_request_data = {
+                    "id": None,
+                    "trainName": data.get('trainName'),
+                    "jobName": None,
+                    "paramName": None,
+                    "description": data.get('description'),
+                    "algorithmId": data['algorithmId'],
+                    "algorithmName": algorithm.algorithm_name,
+                    "datasetType": dataset.type,
+                    "imageTag": image.image_tag,
+                    "imageName": image.image_name,
+                    "notebookId": None,
+                    "dataSourceName": dataset.name,
+                    "dataSourceId": data['dataSourceId'],
+                    "dataSourcePath": dataset.uri,
+                    "runCommand": data.get('runCommand'),
+                    "runParams": {},
+                    "trainType": 0,
+                    "valType": 0,
+                    "resourcesPoolNode": 1,
+                    "resourcesPoolType": resource.resources_pool_type,
+                    "trainJobSpecsName": resource.specs_name,
+                    "outPath": "/home/result/",
+                    "logPath": "/home/log/",
+                    "delayCreateTime": 0,
+                    "delayDeleteTime": 0,
+                    "modelResource": modelInfo.model_resource,
+                    "modelId": data['modelId'],
+                    "modelBranchId": modelBranch.id,
+                    "runParamsNameMap": {},
+                    "ptDdrlTrainParam": {
+                        "scenario": None,
+                        "distributed": False
+                    },
+                    "cpuNum": resource.cpu_num,
+                    "gpuNum": resource.gpu_num,
+                    "memNum": resource.mem_num,
+                    "workspaceRequest": resource.workspace_request
+                }
 
+                java_request_data_list.append(java_request_data)
+                success_count += 1
 
+            except Exception as e:
+                db.session.rollback()
+                errors.append(f"记录{data.get('evaluateTrainId', '未知')}: 处理错误 - {str(e)}")
+                continue
 
-        # 构建要发送给Java后端的数据
-        java_request_data = {
-            "id": None,
-            "trainName": data['trainName'],
-            "jobName": None,
-            "paramName": None,
-            "description": data['description'],
-            "algorithmId": data['algorithmId'],
-            "algorithmName": algorithm.algorithm_name,
-            "datasetType": dataset.type,
-            "imageTag": image.image_tag,
-            "imageName": image.image_name,
-            "notebookId": None,
-            "dataSourceName": dataset.name,
-            "dataSourceId": data['dataSourceId'],
-            "dataSourcePath": dataset.uri,
-            "runCommand": data['runCommand'],
-            "runParams": {},
-            "trainType": 0,
-            "valType": 0,
-            "resourcesPoolNode": 1,
-            "resourcesPoolType": resource.resources_pool_type,
-            "trainJobSpecsName": resource.specs_name,
-            "outPath": "/home/result/",
-            "logPath": "/home/log/",
-            "delayCreateTime": 0,
-            "delayDeleteTime": 0,
-            "modelResource": modelInfo.model_resource,
-            "modelId": data['modelId'],
-            "modelBranchId": data['modelBranchId'],
-            "runParamsNameMap": {},
-            "ptDdrlTrainParam": {
-                "scenario": None,
-                "distributed": False
-            },
-            "cpuNum": resource.cpu_num,
-            "gpuNum": resource.gpu_num,
-            "memNum": resource.mem_num,
-            "workspaceRequest": resource.workspace_request
-        }
+        db.session.commit()
 
-        # 准备请求头（使用前端传来的 Token）
-        headers = {
-            'Content-Type': 'application/json',
-            'Authorization': auth_header  # 直接透传前端的 Authorization 头
-        }
+        if not java_request_data_list:
+            return jsonify({
+                "success": False,
+                "message": "所有记录处理失败",
+                "errors": errors
+            }), 400
 
-        # 调用Java后端API
-        response = requests.post(
-            JAVA_API_URL,
-            json=java_request_data,
-            headers=headers,
-            timeout=10
-        )
+        headers = {'Content-Type': 'application/json', 'Authorization': auth_header}
+        response = requests.post(JAVA_API_URL, json=java_request_data_list, headers=headers, timeout=10)
 
-        # 处理Java后端的响应
         if response.status_code == 200:
             return jsonify({
                 "success": True,
-                "message": "任务已成功提交到Java后端",
-                "java_response": response.json()
+                "message": f"成功更新{success_count}条记录并提交到Java后端",
+                "java_response": response.json(),
+                "errors": errors if errors else None
             })
         else:
+            db.session.rollback()
             return jsonify({
                 "success": False,
-                "message": f"Java后端返回错误: {response.status_code}",
-                "response_text": response.text
+                "message": f"Java后端错误: {response.status_code}",
+                "response_text": response.text,
+                "errors": errors
             }), response.status_code
 
     except requests.exceptions.Timeout:
+        db.session.rollback()
         return jsonify({"success": False, "message": "连接Java后端超时"}), 504
-    except requests.exceptions.RequestException as e:
-        return jsonify({"success": False, "message": f"连接Java后端失败: {str(e)}"}), 500
     except Exception as e:
+        db.session.rollback()
         return jsonify({"success": False, "message": str(e)}), 500
     finally:
         db.session.close()
